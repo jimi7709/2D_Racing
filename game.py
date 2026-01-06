@@ -26,9 +26,45 @@ class Game:
         # 월드 구성 요소
         self.track = Track()  # 1-3: 벽/코스 그리기
         #self.car = Car(self.width // 2, self.height // 2)  # 1-2: 차량 1대
-        self.car = Car(450, 540)
-        self.car.angle = 0.0
-        self.car.speed = 0.0
+        #self.car1 = Car(300, 540)   # P1
+        #self.car2 = Car(350, 540)   # P2 (조금 옆에)
+        
+         # 2P 차량
+        self.car1 = Car(300, 540, body_color=(230, 230, 230), nose_color=(255, 80, 80))
+        self.car2 = Car(350, 540, body_color=(120, 160, 255), nose_color=(255, 255, 80))
+
+
+        self.cp_index1 = 0
+        self.cp_index2 = 0
+        self.winner = None  # "P1" or "P2"
+
+         # 키맵(입력 분리용): 여기서 "정의만" 해둠  
+        self.p1_keymap = {"throttle": pygame.K_w, "brake": pygame.K_s, "left": pygame.K_a, "right": pygame.K_d}
+        self.p2_keymap = {"throttle": pygame.K_UP, "brake": pygame.K_DOWN, "left": pygame.K_LEFT, "right": pygame.K_RIGHT}
+
+        # UI
+        self.show_hud = True
+        self.font = pygame.font.SysFont(None, 22)
+
+        # keys = pygame.key.get_pressed()
+
+        # p1 = {
+        #     "throttle": keys[pygame.K_w],
+        #     "brake": keys[pygame.K_s],
+        #     "left": keys[pygame.K_a],
+        #     "right": keys[pygame.K_d],
+        # }
+
+        # p2 = {
+        #     "throttle": keys[pygame.K_UP],
+        #     "brake": keys[pygame.K_DOWN],
+        #     "left": keys[pygame.K_LEFT],
+        #     "right": keys[pygame.K_RIGHT],
+        # }
+
+        
+        # self.car.angle = 0.0
+        # self.car.speed = 0.0
 
         # 디버그/옵션
         self.show_hud = True
@@ -37,6 +73,40 @@ class Game:
         #체크 포인트
         self.cp_index = 0       # 다음에 통과해야 할 체크포인트 인덱스 (0~2)
         self.finished = False   # 3개 다 통과하면 True
+
+    def update_one_car(self, car, control, cp_index):
+        old_x, old_y = car.x, car.y
+
+        # car.update가 이동까지 수행
+        car.update(
+            self.dt,
+            control["throttle"],
+            control["brake"],
+            control["left"],
+            control["right"]
+        )
+
+        # 변화량 추출 → 축별 적용(슬라이딩)
+        dx, dy = car.x - old_x, car.y - old_y
+        car.x, car.y = old_x, old_y
+
+        # X
+        car.x = old_x + dx
+        if self.track.collides_with_walls(car.get_aabb_rect()):
+            car.x = old_x
+
+        # Y
+        car.y = old_y + dy
+        if self.track.collides_with_walls(car.get_aabb_rect()):
+            car.y = old_y
+
+        # 체크포인트(순서 강제)
+        if cp_index < len(self.track.checkpoints):
+            target = self.track.checkpoints[cp_index]
+            if car.get_aabb_rect().colliderect(target):
+                cp_index += 1
+
+        return cp_index
 
 
     def run(self):
@@ -69,48 +139,74 @@ class Game:
     def update(self, dt):
         keys = pygame.key.get_pressed()
 
-        # 1) 이동 전 상태 저장
-        old_x, old_y = self.car.x, self.car.y
+        # 승자 나오면 차량 업데이트 중지(원하면 계속 움직이게 해도 됨)
+        if self.winner is None:
+            # P1 업데이트
+            self._move_with_sliding(self.car1, dt, keys, self.p1_keymap)
+            self.cp_index1 = self._check_checkpoint(self.car1, self.cp_index1)
 
-        # 2) car.update로 (임시) 새 위치까지 계산하게 둠
-        #    -> car.update가 self.x/self.y를 바꿔버리므로, 변화량을 뽑아낸다.
-        self.car.update(dt, keys)
+            # P2 업데이트
+            self._move_with_sliding(self.car2, dt, keys, self.p2_keymap)
+            self.cp_index2 = self._check_checkpoint(self.car2, self.cp_index2)
 
-        new_x, new_y = self.car.x, self.car.y
-        dx = new_x - old_x
-        dy = new_y - old_y
+            # 승리 판정
+            if self.cp_index1 >= len(self.track.checkpoints):
+                self.winner = "P1"
+            elif self.cp_index2 >= len(self.track.checkpoints):
+                self.winner = "P2"
 
-        # 3) 일단 원래 위치로 되돌려 놓고, 축별로 적용
-        self.car.x, self.car.y = old_x, old_y
 
-        # --- X축 먼저 적용 ---
-        self.car.x = old_x + dx
-        if self.track.collides_with_walls(self.car.get_aabb_rect()):
-            # X축은 벽에 막힘 -> 되돌림
-            self.car.x = old_x
-            # (선택) X축 충돌이면 속도 약간 깎기(너무 딱딱하면 주석)
-            # self.car.speed *= 0.8
+    # def update(self, dt):
+    #     keys = pygame.key.get_pressed()
 
-        # --- Y축 적용 ---
-        self.car.y = old_y + dy
-        if self.track.collides_with_walls(self.car.get_aabb_rect()):
-            # Y축은 벽에 막힘 -> 되돌림
-            self.car.y = old_y
-            # (선택) Y축 충돌이면 속도 약간 깎기
-            # self.car.speed *= 0.8
+    #     # 1) 이동 전 상태 저장
+    #     old_x, old_y = self.car.x, self.car.y
 
-        # --- 체크포인트 판정(순서 강제) ---
-        if not self.finished:
-            car_rect = self.car.get_aabb_rect()
-            target_cp = self.track.checkpoints[self.cp_index]
+    #     # 2) car.update로 (임시) 새 위치까지 계산하게 둠
+    #     #    -> car.update가 self.x/self.y를 바꿔버리므로, 변화량을 뽑아낸다.
+    #     self.car.update(dt, keys)
 
-        if car_rect.colliderect(target_cp):
-            self.cp_index += 1
+    #     new_x, new_y = self.car.x, self.car.y
+    #     dx = new_x - old_x
+    #     dy = new_y - old_y
 
-        if self.cp_index >= len(self.track.checkpoints):
-            self.finished = True
-            # 완료주의: 일단 속도 0으로 정지
-            self.car.speed = 0.0
+    #     # 3) 일단 원래 위치로 되돌려 놓고, 축별로 적용
+    #     self.car.x, self.car.y = old_x, old_y
+
+    #     # --- X축 먼저 적용 ---
+    #     self.car.x = old_x + dx
+    #     if self.track.collides_with_walls(self.car.get_aabb_rect()):
+    #         # X축은 벽에 막힘 -> 되돌림
+    #         self.car.x = old_x
+    #         # (선택) X축 충돌이면 속도 약간 깎기(너무 딱딱하면 주석)
+    #         # self.car.speed *= 0.8
+
+    #     # --- Y축 적용 ---
+    #     self.car.y = old_y + dy
+    #     if self.track.collides_with_walls(self.car.get_aabb_rect()):
+    #         # Y축은 벽에 막힘 -> 되돌림
+    #         self.car.y = old_y
+    #         # (선택) Y축 충돌이면 속도 약간 깎기
+    #         # self.car.speed *= 0.8
+
+    #     # --- 체크포인트 판정(순서 강제) ---
+    #     if not self.finished:
+    #         car_rect = self.car.get_aabb_rect()
+    #         target_cp = self.track.checkpoints[self.cp_index]
+
+    #     if car_rect.colliderect(target_cp):
+    #         self.cp_index += 1
+
+    #     if self.cp_index >= len(self.track.checkpoints):
+    #         self.finished = True
+    #         # 완료주의: 일단 속도 0으로 정지
+    #         self.car.speed = 0.0
+
+    #     if self.winner is None:
+    #         if self.cp_index1 >= len(self.track.checkpoints):
+    #             self.winner = "P1"
+    #         elif self.cp_index2 >= len(self.track.checkpoints):
+    #             self.winner = "P2"
 
 
     # def update(self, dt: float):
@@ -147,37 +243,83 @@ class Game:
         # 트랙(벽/코스) 먼저
         self.track.draw(self.screen)
 
-        # 자동차
-        self.car.draw(self.screen)
+        
+        # ✅ 자동차 2대 그리기
+        self.car1.draw(self.screen)
+        self.car2.draw(self.screen)
 
         # HUD
         if self.show_hud:
             self._draw_hud()
 
-        pygame.display.flip()
-        if self.finished:
-            msg = self.font.render("FINISH! (Press ESC to quit)", True, (255, 255, 0))
-            rect = msg.get_rect(center=(self.width // 2, self.height // 2))
-            self.screen.blit(msg, rect)
-
+        # ✅ 승자 메시지(있으면) - flip 전에
+        if self.winner:
+            msg = self.font.render(f"{self.winner} WINS! (ESC to quit)", True, (255, 255, 0))
+            self.screen.blit(msg, msg.get_rect(center=(self.width // 2, self.height // 2)))
+            # if self.finished:
+            #     msg = self.font.render("FINISH! (Press ESC to quit)", True, (255, 255, 0))
+            #     rect = msg.get_rect(center=(self.width // 2, self.height // 2))
+            #     self.screen.blit(msg, rect)
+            pygame.display.flip()
     def _draw_hud(self):
-        """상단 왼쪽 디버그 정보 표시"""
-        # car.py에 angle/speed가 있어야 함(없으면 car.py에 추가 필요)
-        speed = getattr(self.car, "speed", 0.0)
-        angle = getattr(self.car, "angle", 0.0)
-
         lines = [
             f"FPS: {self.clock.get_fps():.1f}",
-            f"checkpoint: {self.cp_index}/{len(self.track.checkpoints)}",
-
-            f"pos: ({self.car.x:.1f}, {self.car.y:.1f})",
-            f"speed: {speed:.1f}",
-            f"angle(rad): {angle:.2f}",
-            "H: toggle HUD | ESC: quit",
+            f"P1 CP: {self.cp_index1}/{len(self.track.checkpoints)}",
+            f"P2 CP: {self.cp_index2}/{len(self.track.checkpoints)}",
         ]
-
         y = 8
         for line in lines:
             surf = self.font.render(line, True, (220, 220, 220))
             self.screen.blit(surf, (10, y))
             y += 20
+
+    # def _draw_hud(self):
+    #     """상단 왼쪽 디버그 정보 표시"""
+    #     # car.py에 angle/speed가 있어야 함(없으면 car.py에 추가 필요)
+    #     speed = getattr(self.car, "speed", 0.0)
+    #     angle = getattr(self.car, "angle", 0.0)
+
+    #     lines = [
+    #         f"FPS: {self.clock.get_fps():.1f}",
+    #         f"checkpoint: {self.cp_index}/{len(self.track.checkpoints)}",
+
+    #         f"pos: ({self.car.x:.1f}, {self.car.y:.1f})",
+    #         f"speed: {speed:.1f}",
+    #         f"angle(rad): {angle:.2f}",
+    #         "H: toggle HUD | ESC: quit",
+    #     ]
+
+    #     y = 8
+    #     for line in lines:
+    #         surf = self.font.render(line, True, (220, 220, 220))
+    #         self.screen.blit(surf, (10, y))
+    #         y += 20
+
+
+    def _move_with_sliding(self, car, dt, keys, keymap):
+        old_x, old_y = car.x, car.y
+
+        # car.update가 (x,y)를 바꿔버리므로 변화량 추출 방식 사용
+        car.update(dt, keys, keymap)
+        dx, dy = car.x - old_x, car.y - old_y
+
+        car.x, car.y = old_x, old_y
+
+        # X
+        car.x = old_x + dx
+        if self.track.collides_with_walls(car.get_aabb_rect()):
+            car.x = old_x
+
+        # Y
+        car.y = old_y + dy
+        if self.track.collides_with_walls(car.get_aabb_rect()):
+            car.y = old_y
+
+
+    def _check_checkpoint(self, car, cp_index):
+        if cp_index >= len(self.track.checkpoints):
+            return cp_index
+        target = self.track.checkpoints[cp_index]
+        if car.get_aabb_rect().colliderect(target):
+            return cp_index + 1
+        return cp_index

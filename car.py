@@ -15,7 +15,7 @@ class Car:
     - update(dt, keys), draw(screen) 제공
     """
 
-    def __init__(self, x: float, y: float):
+    def __init__(self, x, y, body_color=(230, 230, 230), nose_color=(255, 80, 80)):
         # 상태
         self.x = float(x)
         self.y = float(y)
@@ -33,42 +33,97 @@ class Car:
         self.W = 20
         self.H = 11
 
+        # ✅ 색상 저장
+        self.body_color = body_color
+        self.nose_color = nose_color
+
         # 렌더링용 색/표시
         self.body_color = (230, 230, 230)
         self.nose_color = (255, 80, 80)  # 앞부분 표시(방향 확인)
-
-    def update(self, dt: float, keys):
-        """
-        keys: pygame.key.get_pressed() 결과
-        dt: seconds
-        """
-        # 1) 가속/브레이크
-        if keys[pygame.K_w] or keys[pygame.K_UP]:
+    
+    def update(self, dt, keys, keymap):
+        # 가속/브레이크
+        if keys[keymap["throttle"]]:
             self.speed += self.ACCEL * dt
-        elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
+        elif keys[keymap["brake"]]:
             self.speed -= self.BRAKE * dt
         else:
-            # 2) 마찰: 속도를 0으로 끌어오기
+            # 마찰
             if self.speed > 0:
                 self.speed = max(0.0, self.speed - self.FRICTION * dt)
             elif self.speed < 0:
                 self.speed = min(0.0, self.speed + self.FRICTION * dt)
 
-        # 3) 속도 제한(후진은 절반 정도만 허용)
+        # 속도 제한
         self.speed = max(-self.MAX_SPEED * 0.4, min(self.MAX_SPEED, self.speed))
 
-        # 4) 회전(속도가 거의 0이면 회전 금지 → 레이싱 느낌)
+        # 회전
         if abs(self.speed) > 5:
-            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+            if keys[keymap["left"]]:
                 self.angle -= self.TURN_SPEED * dt
-            if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+            if keys[keymap["right"]]:
                 self.angle += self.TURN_SPEED * dt
 
-        # 5) 이동(각도 방향 벡터로 전진)
-        vx = math.cos(self.angle) * self.speed
-        vy = math.sin(self.angle) * self.speed
-        self.x += vx * dt
-        self.y += vy * dt
+        # 이동
+        self.x += math.cos(self.angle) * self.speed * dt
+        self.y += math.sin(self.angle) * self.speed * dt
+
+
+    # 버전 2 def update(self, dt, throttle, brake, left, right):
+    #     if throttle:
+    #         self.speed += self.ACCEL * dt
+    #     elif brake:
+    #         self.speed -= self.BRAKE * dt
+    #     else:
+    #         if self.speed > 0:
+    #             self.speed = max(0.0, self.speed - self.FRICTION * dt)
+    #         elif self.speed < 0:
+    #             self.speed = min(0.0, self.speed + self.FRICTION * dt)
+
+    #     self.speed = max(-self.MAX_SPEED * 0.4, min(self.MAX_SPEED, self.speed))
+
+    #     if abs(self.speed) > 5:
+    #         if left:
+    #             self.angle -= self.TURN_SPEED * dt
+    #         if right:
+    #             self.angle += self.TURN_SPEED * dt
+
+    #     self.x += math.cos(self.angle) * self.speed * dt
+    #     self.y += math.sin(self.angle) * self.speed * dt
+
+
+    # 버전 1 def update(self, dt: float, keys): 
+    #     """
+    #     keys: pygame.key.get_pressed() 결과
+    #     dt: seconds
+    #     """
+    #     # 1) 가속/브레이크
+    #     if keys[pygame.K_w] or keys[pygame.K_UP]:
+    #         self.speed += self.ACCEL * dt
+    #     elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
+    #         self.speed -= self.BRAKE * dt
+    #     else:
+    #         # 2) 마찰: 속도를 0으로 끌어오기
+    #         if self.speed > 0:
+    #             self.speed = max(0.0, self.speed - self.FRICTION * dt)
+    #         elif self.speed < 0:
+    #             self.speed = min(0.0, self.speed + self.FRICTION * dt)
+
+    #     # 3) 속도 제한(후진은 절반 정도만 허용)
+    #     self.speed = max(-self.MAX_SPEED * 0.4, min(self.MAX_SPEED, self.speed))
+
+    #     # 4) 회전(속도가 거의 0이면 회전 금지 → 레이싱 느낌)
+    #     if abs(self.speed) > 5:
+    #         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+    #             self.angle -= self.TURN_SPEED * dt
+    #         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+    #             self.angle += self.TURN_SPEED * dt
+
+    #     # 5) 이동(각도 방향 벡터로 전진)
+    #     vx = math.cos(self.angle) * self.speed
+    #     vy = math.sin(self.angle) * self.speed
+    #     self.x += vx * dt
+    #     self.y += vy * dt
 
     def draw(self, screen: pygame.Surface):
         """
@@ -76,6 +131,10 @@ class Car:
         - 차체 사각형
         - 앞부분 점(방향 표시)
         """
+        if self.winner:
+            msg = self.font.render(f"{self.winner} WINS! (ESC to quit)", True, (255, 255, 0))
+            self.screen.blit(msg, msg.get_rect(center=(self.width//2, self.height//2)))
+
         car_surf = pygame.Surface((self.W, self.H), pygame.SRCALPHA)
         pygame.draw.rect(
             car_surf,
