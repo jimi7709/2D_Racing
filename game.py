@@ -74,7 +74,7 @@ class Game:
         self.cp_index = 0       # 다음에 통과해야 할 체크포인트 인덱스 (0~2)
         self.finished = False   # 3개 다 통과하면 True
 
-    def update_one_car(self, car, control, cp_index):
+    def update_one_car(self, car, control, cp_index): # 비권장
         old_x, old_y = car.x, car.y
 
         # car.update가 이동까지 수행
@@ -260,7 +260,9 @@ class Game:
             #     msg = self.font.render("FINISH! (Press ESC to quit)", True, (255, 255, 0))
             #     rect = msg.get_rect(center=(self.width // 2, self.height // 2))
             #     self.screen.blit(msg, rect)
-            pygame.display.flip()
+        
+        pygame.display.flip()
+    
     def _draw_hud(self):
         lines = [
             f"FPS: {self.clock.get_fps():.1f}",

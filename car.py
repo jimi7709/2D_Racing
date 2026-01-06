@@ -37,9 +37,9 @@ class Car:
         self.body_color = body_color
         self.nose_color = nose_color
 
-        # 렌더링용 색/표시
-        self.body_color = (230, 230, 230)
-        self.nose_color = (255, 80, 80)  # 앞부분 표시(방향 확인)
+        # 위에 것이 올바른 코드(렌더링용 색/표시
+        #self.body_color = (230, 230, 230)
+        #self.nose_color = (255, 80, 80)  # 앞부분 표시(방향 확인)
     
     def update(self, dt, keys, keymap):
         # 가속/브레이크
@@ -131,9 +131,9 @@ class Car:
         - 차체 사각형
         - 앞부분 점(방향 표시)
         """
-        if self.winner:
-            msg = self.font.render(f"{self.winner} WINS! (ESC to quit)", True, (255, 255, 0))
-            self.screen.blit(msg, msg.get_rect(center=(self.width//2, self.height//2)))
+        # if self.winner:
+        #     msg = self.font.render(f"{self.winner} WINS! (ESC to quit)", True, (255, 255, 0))
+        #     self.screen.blit(msg, msg.get_rect(center=(self.width//2, self.height//2)))
 
         car_surf = pygame.Surface((self.W, self.H), pygame.SRCALPHA)
         pygame.draw.rect(
