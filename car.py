@@ -1,51 +1,88 @@
 # car.py
 import math
+import time
+
 import pygame
 
 
 class Car:
     """
-    자동차 1대의 책임:
-    - 상태: x, y, angle(radians), speed
-    - 입력 기반 업데이트(가속/브레이크/회전/마찰)
-    - 화면 렌더링(회전 포함)
+    통합된 자동차 클래스:
+    - 기본 주행 물리 (가속, 마찰, 회전)
+    - 감정표현 (이모트) 기능 포함
+    - 아이템 (부스트) 기능 포함
 
-    game.py에서 요구하는 것:
-    - self.x, self.y, self.speed, self.angle 존재
-    - update(dt, keys), draw(screen) 제공
+    통합 규칙:
+    - 생성자: Car(x, y) 형태 유지 (색은 setattr로 바꿀 수 있음)
+    - draw(screen, emote_imgs=None) 형태 유지 (emote_imgs는 선택)
     """
 
     def __init__(self, x, y, body_color=(230, 230, 230), nose_color=(255, 80, 80)):
         # 상태
         self.x = float(x)
         self.y = float(y)
-        self.angle = 0.0     # radians
-        self.speed = 0.0     # pixels/sec
+        self.angle = 0.0
+        self.speed = 0.0
 
-        # 튜닝 파라미터(완료주의 기본값)
-        self.ACCEL = 300.0       # 가속 (px/s^2)
-        self.BRAKE = 450.0       # 감속/브레이크 (px/s^2)
-        self.FRICTION = 240.0    # 마찰 (px/s^2)
-        self.TURN_SPEED = 2.6    # 회전 속도 (rad/s)
-        self.MAX_SPEED = 500.0   # 최대 속도 (px/s)
+        # 튜닝 파라미터
+        # (기본 속도는 낮추고, 부스트로 체감되게 구성)
+        self.ACCEL = 200.0
+        self.BRAKE = 450.0
+        self.FRICTION = 240.0
+        self.TURN_SPEED = 2.6
+        self.MAX_SPEED = 300.0
 
-        # 차량 크기(충돌 박스도 이걸로 만들 예정)
+        # 차량 크기
         self.W = 20
         self.H = 11
 
-        # ✅ 색상 저장
+        # 색상
         self.body_color = body_color
         self.nose_color = nose_color
 
-        # 위에 것이 올바른 코드(렌더링용 색/표시
-        #self.body_color = (230, 230, 230)
-        #self.nose_color = (255, 80, 80)  # 앞부분 표시(방향 확인)
-    
+        # 감정표현
+        self.emote_id = 0
+        self.emote_end_time = 0.0
+
+        # 아이템/부스트
+        self.has_item = False
+        self.boost_timer = 0.0
+        self.boost_duration = 2.0
+        self.boost_factor = 1.8
+
+    # --- 감정표현 ---
+    def set_emote(self, emote_id: int):
+        self.emote_id = int(emote_id)
+        self.emote_end_time = time.time() + 2.5
+
+    # --- 아이템/부스트 ---
+    def activate_boost(self):
+        if self.has_item:
+            self.has_item = False
+            self.boost_timer = self.boost_duration
+
+    # --- 업데이트 ---
     def update(self, dt, keys, keymap):
+        throttle = keys[keymap["throttle"]]
+        brake = keys[keymap["brake"]]
+        left = keys[keymap["left"]]
+        right = keys[keymap["right"]]
+        self.update_control(dt, throttle, brake, left, right)
+
+    def update_control(self, dt, throttle: bool, brake: bool, left: bool, right: bool):
+        # 부스트 상태에 따라 최대 속도/가속도 증가
+        current_max_speed = self.MAX_SPEED
+        current_accel = self.ACCEL
+
+        if self.boost_timer > 0.0:
+            self.boost_timer = max(0.0, self.boost_timer - dt)
+            current_max_speed *= self.boost_factor
+            current_accel *= self.boost_factor
+
         # 가속/브레이크
-        if keys[keymap["throttle"]]:
-            self.speed += self.ACCEL * dt
-        elif keys[keymap["brake"]]:
+        if throttle:
+            self.speed += current_accel * dt
+        elif brake:
             self.speed -= self.BRAKE * dt
         else:
             # 마찰
@@ -54,111 +91,49 @@ class Car:
             elif self.speed < 0:
                 self.speed = min(0.0, self.speed + self.FRICTION * dt)
 
-        # 속도 제한
-        self.speed = max(-self.MAX_SPEED * 0.4, min(self.MAX_SPEED, self.speed))
+        # 속도 제한(후진은 약 40%)
+        self.speed = max(-current_max_speed * 0.4, min(current_max_speed, self.speed))
 
-        # 회전
+        # 회전 (속도가 어느 정도 있을 때만)
         if abs(self.speed) > 5:
-            if keys[keymap["left"]]:
+            if left:
                 self.angle -= self.TURN_SPEED * dt
-            if keys[keymap["right"]]:
+            if right:
                 self.angle += self.TURN_SPEED * dt
 
-        # 이동
-        self.x += math.cos(self.angle) * self.speed * dt
-        self.y += math.sin(self.angle) * self.speed * dt
+        # 위치 업데이트
+        vx = math.cos(self.angle) * self.speed
+        vy = math.sin(self.angle) * self.speed
+        self.x += vx * dt
+        self.y += vy * dt
 
-
-    # 버전 2 def update(self, dt, throttle, brake, left, right):
-    #     if throttle:
-    #         self.speed += self.ACCEL * dt
-    #     elif brake:
-    #         self.speed -= self.BRAKE * dt
-    #     else:
-    #         if self.speed > 0:
-    #             self.speed = max(0.0, self.speed - self.FRICTION * dt)
-    #         elif self.speed < 0:
-    #             self.speed = min(0.0, self.speed + self.FRICTION * dt)
-
-    #     self.speed = max(-self.MAX_SPEED * 0.4, min(self.MAX_SPEED, self.speed))
-
-    #     if abs(self.speed) > 5:
-    #         if left:
-    #             self.angle -= self.TURN_SPEED * dt
-    #         if right:
-    #             self.angle += self.TURN_SPEED * dt
-
-    #     self.x += math.cos(self.angle) * self.speed * dt
-    #     self.y += math.sin(self.angle) * self.speed * dt
-
-
-    # 버전 1 def update(self, dt: float, keys): 
-    #     """
-    #     keys: pygame.key.get_pressed() 결과
-    #     dt: seconds
-    #     """
-    #     # 1) 가속/브레이크
-    #     if keys[pygame.K_w] or keys[pygame.K_UP]:
-    #         self.speed += self.ACCEL * dt
-    #     elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
-    #         self.speed -= self.BRAKE * dt
-    #     else:
-    #         # 2) 마찰: 속도를 0으로 끌어오기
-    #         if self.speed > 0:
-    #             self.speed = max(0.0, self.speed - self.FRICTION * dt)
-    #         elif self.speed < 0:
-    #             self.speed = min(0.0, self.speed + self.FRICTION * dt)
-
-    #     # 3) 속도 제한(후진은 절반 정도만 허용)
-    #     self.speed = max(-self.MAX_SPEED * 0.4, min(self.MAX_SPEED, self.speed))
-
-    #     # 4) 회전(속도가 거의 0이면 회전 금지 → 레이싱 느낌)
-    #     if abs(self.speed) > 5:
-    #         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-    #             self.angle -= self.TURN_SPEED * dt
-    #         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-    #             self.angle += self.TURN_SPEED * dt
-
-    #     # 5) 이동(각도 방향 벡터로 전진)
-    #     vx = math.cos(self.angle) * self.speed
-    #     vy = math.sin(self.angle) * self.speed
-    #     self.x += vx * dt
-    #     self.y += vy * dt
-
-    def draw(self, screen: pygame.Surface):
-        """
-        회전 포함 렌더링:
-        - 차체 사각형
-        - 앞부분 점(방향 표시)
-        """
-        # if self.winner:
-        #     msg = self.font.render(f"{self.winner} WINS! (ESC to quit)", True, (255, 255, 0))
-        #     self.screen.blit(msg, msg.get_rect(center=(self.width//2, self.height//2)))
-
+    # --- 렌더링 ---
+    def draw(self, screen: pygame.Surface, emote_imgs=None):
+        # 차체
         car_surf = pygame.Surface((self.W, self.H), pygame.SRCALPHA)
-        pygame.draw.rect(
-            car_surf,
-            self.body_color,
-            pygame.Rect(0, 0, self.W, self.H),
-            border_radius=6,
-        )
+        pygame.draw.rect(car_surf, self.body_color, pygame.Rect(0, 0, self.W, self.H), border_radius=6)
 
-        # 방향 표시(앞쪽)
-        pygame.draw.circle(
-            car_surf,
-            self.nose_color,
-            (self.W - 6, self.H // 2),
-            4,
-        )
+        # 앞부분 표시
+        pygame.draw.circle(car_surf, self.nose_color, (self.W - 6, self.H // 2), 4)
+
+        # 아이템 보유 표시
+        if self.has_item:
+            pygame.draw.circle(car_surf, (0, 200, 255), (self.W // 2, self.H // 2), 3)
 
         rotated = pygame.transform.rotate(car_surf, -math.degrees(self.angle))
         rect = rotated.get_rect(center=(self.x, self.y))
         screen.blit(rotated, rect.topleft)
 
+        # 감정표현(이모트)
+        now = time.time()
+        if self.emote_id > 0:
+            if now < self.emote_end_time:
+                if emote_imgs and self.emote_id in emote_imgs:
+                    img = emote_imgs[self.emote_id]
+                    cx, cy = self.x, self.y - 40
+                    screen.blit(img, img.get_rect(center=(cx, cy)))
+            else:
+                self.emote_id = 0
+
     def get_aabb_rect(self):
-        return pygame.Rect(
-        int(self.x - self.W / 2),
-        int(self.y - self.H / 2),
-        self.W,
-        self.H
-        )
+        return pygame.Rect(int(self.x - self.W / 2), int(self.y - self.H / 2), self.W, self.H)

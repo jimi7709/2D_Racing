@@ -1,106 +1,167 @@
 # track.py
+import random
+
 import pygame
 
+
 class Track:
-    def __init__(self):
-        # # 벽(장애물) 목록: pygame.Rect(x, y, w, h)
-        # self.walls = [
-        #     # 바깥 테두리(두께 20) 느낌의 벽 4개
-        #     pygame.Rect(0, 0, 900, 20),
-        #     pygame.Rect(0, 580, 900, 20),
-        #     pygame.Rect(0, 0, 20, 600),
-        #     pygame.Rect(880, 0, 20, 600),
+    """
+    통합 Track:
+    - Track(map_id=0) + load_map(map_id)
+    - spawn_points 제공 (car spawn)
+    - get_random_safe_point 제공 (아이템 스폰)
+    - draw()는 "fill을 하지 않음" (Game이 배경 fill 담당)
+    """
 
-        #     # 내부 장애물(코스 모양 만들기)
-        #     pygame.Rect(120, 100, 660, 20),
-        #     pygame.Rect(120, 100, 20, 380),
-        #     pygame.Rect(120, 460, 520, 20),
-        #     pygame.Rect(620, 220, 20, 260),
-        #     pygame.Rect(260, 220, 380, 20),
-        # ]
+    def __init__(self, map_id: int = 0):
+        self.walls: list[pygame.Rect] = []
+        self.checkpoints: list[pygame.Rect] = []
+        self.spawn_points = [(300, 540), (350, 540)]
 
-        # # (선택) 시각용 체크포인트: 아직 판정 안 함(그리기만)
-        # self.checkpoints = [
-        #     pygame.Rect(200, 60, 80, 20),
-        #     pygame.Rect(760, 260, 20, 80),
-        #     pygame.Rect(300, 520, 80, 20),
-        # ]
+        # pygame.init() 이후에 font 사용 가능
+        try:
+            self.font = pygame.font.SysFont("Arial", 30, bold=True)
+        except Exception:
+            self.font = None
 
-
-        T = 16  # ✅ 벽 두께 줄임 (통로 넓어짐)
-
-        self.walls = [
-            # 바깥 테두리(외벽)
+        # 기존 track.py의 맵(=Map 1로 사용)
+        T = 16
+        map0_walls = [
             pygame.Rect(0, 0, 900, T),
             pygame.Rect(0, 600 - T, 900, T),
             pygame.Rect(0, 0, T, 600),
             pygame.Rect(900 - T, 0, T, 600),
-        ]
 
-        # ✅ 내부 섬들(통로 넓게 조정)
-        self.walls += [
-            # (A) 중앙 큰 섬: 크기 줄여서 사방 통로 넓힘
-            pygame.Rect(220, 170, 460, 200),   # 기존(170,140,560,260)보다 훨씬 작게
-
-            # (B) 위쪽 굴곡: 덩어리들을 작게/위로 올려 통로 확보
+            pygame.Rect(220, 170, 460, 200),
             pygame.Rect(140, 60, 140, 120),
             pygame.Rect(330, 60, 240, 70),
             pygame.Rect(620, 60, 140, 120),
-
-            # (C) 오른쪽 헤어핀: 폭/높이 줄여 막힘 감소
             pygame.Rect(740, 250, 110, 150),
-
-            # (D) 왼쪽 중간: 폭 줄여 좌측 통로 넓힘
             pygame.Rect(90, 270, 130, 140),
-
-            # (E) 하단 직선 위 섬: 높이 줄여 하단 통로 넓힘
             pygame.Rect(260, 450, 380, 40),
-
-            # (F) 중앙 돌출부(시케인 느낌): 과하게 막히면 주석처리 가능
             pygame.Rect(460, 260, 100, 60),
         ]
+        map0_cps = [
+            pygame.Rect(420, 520, 60, 40),
+            pygame.Rect(780, 120, 60, 60),
+            pygame.Rect(120, 120, 60, 60),
+        ]
+        map0_spawn = [(300, 540), (350, 540)]
 
-        # 체크포인트도 통로 넓어진 배치에 맞춰 약간 조정
-        self.checkpoints = [
-            pygame.Rect(420, 520, 60, 40),  # 하단 직선
-            pygame.Rect(780, 120, 60, 60),  # 우상단
-            pygame.Rect(120, 120, 60, 60),  # 좌상단
+        # 기존 track.py 맵을 Map 1로 + track2의 맵들을 Map 2~5로 (총 5개)
+        self.MAP_DATA = [
+            {"walls": map0_walls, "checkpoints": map0_cps, "spawn_points": map0_spawn},
+
+            # Map 2: 기본 오벌 트랙(원본 track2의 Map 1)
+            {
+                "walls": [
+                    pygame.Rect(0, 0, 900, 20),
+                    pygame.Rect(0, 580, 900, 20),
+                    pygame.Rect(0, 0, 20, 600),
+                    pygame.Rect(880, 0, 20, 600),
+                    pygame.Rect(200, 150, 500, 300),
+                ],
+                "checkpoints": [
+                    pygame.Rect(750, 60, 80, 80),
+                    pygame.Rect(750, 460, 80, 80),
+                    pygame.Rect(70, 260, 80, 80),
+                ],
+                "spawn_points": [(100, 300), (100, 350)],
+            },
+
+            # Map 3: U자
+            {
+                "walls": [
+                    pygame.Rect(0, 0, 900, 20),
+                    pygame.Rect(0, 580, 900, 20),
+                    pygame.Rect(0, 0, 20, 600),
+                    pygame.Rect(880, 0, 20, 600),
+                    pygame.Rect(200, 150, 500, 250),
+                    pygame.Rect(200, 400, 150, 100),
+                    pygame.Rect(550, 400, 150, 100),
+                ],
+                "checkpoints": [
+                    pygame.Rect(50, 50, 80, 80),
+                    pygame.Rect(770, 50, 80, 80),
+                    pygame.Rect(420, 500, 80, 80),
+                ],
+                "spawn_points": [(100, 500), (800, 500)],
+            },
+
+            # Map 4: 8자
+            {
+                "walls": [
+                    pygame.Rect(0, 0, 900, 20),
+                    pygame.Rect(0, 580, 900, 20),
+                    pygame.Rect(0, 0, 20, 600),
+                    pygame.Rect(880, 0, 20, 600),
+                    pygame.Rect(150, 100, 250, 150),
+                    pygame.Rect(500, 100, 250, 150),
+                    pygame.Rect(150, 350, 250, 150),
+                    pygame.Rect(500, 350, 250, 150),
+                ],
+                "checkpoints": [
+                    pygame.Rect(420, 30, 60, 60),
+                    pygame.Rect(420, 510, 60, 60),
+                    pygame.Rect(400, 270, 100, 60),
+                ],
+                "spawn_points": [(420, 220), (420, 280)],
+            },
+
+            # Map 5: 미로형
+            {
+                "walls": [
+                    pygame.Rect(0, 0, 900, 20),
+                    pygame.Rect(0, 580, 900, 20),
+                    pygame.Rect(0, 0, 20, 600),
+                    pygame.Rect(880, 0, 20, 600),
+                    pygame.Rect(200, 0, 20, 450),
+                    pygame.Rect(450, 150, 20, 450),
+                    pygame.Rect(700, 0, 20, 450),
+                ],
+                "checkpoints": [
+                    pygame.Rect(100, 500, 60, 60),
+                    pygame.Rect(550, 50, 60, 60),
+                    pygame.Rect(800, 500, 60, 60),
+                ],
+                "spawn_points": [(100, 100), (100, 150)],
+            },
         ]
 
-    def draw(self, screen):
-                # 배경(잔디 느낌)
-        screen.fill((40, 90, 40))
+        self.load_map(map_id)
 
-        # 도로 느낌(그냥 어두운 영역을 깔아도 되지만, 여기선 벽만 표시)
-        # 외곽 테두리 강조
-        pygame.draw.rect(screen, (30, 30, 30), screen.get_rect(), 6)
+    def load_map(self, map_id: int):
+        if map_id < 0 or map_id >= len(self.MAP_DATA):
+            map_id = 0
 
-        # 벽(섬) 그리기
-        for w in self.walls:
-            pygame.draw.rect(screen, (90, 90, 90), w)
+        data = self.MAP_DATA[map_id]
+        self.walls = data["walls"]
+        self.checkpoints = data["checkpoints"]
+        self.spawn_points = data.get("spawn_points", [(300, 540), (350, 540)])
 
-        # 체크포인트(초록 테두리)
-        for cp in self.checkpoints:
-            pygame.draw.rect(screen, (60, 200, 60), cp, 3)
-
-        # # 배경(트랙 영역) 느낌
-        # pygame.draw.rect(screen, (255, 0, 0), pygame.Rect(50, 50, 200, 120))
-
-        # screen_rect = screen.get_rect()
-        # pygame.draw.rect(screen, (40, 40, 40), screen_rect)          # 바탕
-        # pygame.draw.rect(screen, (70, 70, 70), screen_rect, 8)       # 테두리 강조
-
-        # # 벽 그리기
-        # for w in self.walls:
-        #     pygame.draw.rect(screen, (0, 255, 255), w)  # 시안색
-
-
-        # # 체크포인트(선택: 눈에만 보이게)
-        # for cp in self.checkpoints:
-        #     pygame.draw.rect(screen, (60, 140, 60), cp, 2)
-
-    def collides_with_walls(self, rect):
+    def collides_with_walls(self, rect: pygame.Rect) -> bool:
         for w in self.walls:
             if rect.colliderect(w):
                 return True
         return False
+
+    def draw(self, screen: pygame.Surface):
+        # NOTE: 배경 fill은 Game이 담당 (통합 규칙)
+        for w in self.walls:
+            pygame.draw.rect(screen, (100, 100, 100), w)
+            pygame.draw.rect(screen, (150, 150, 150), w, 2)
+
+        for i, cp in enumerate(self.checkpoints):
+            pygame.draw.rect(screen, (0, 255, 0), cp, 4)
+            if self.font:
+                text = self.font.render(str(i + 1), True, (255, 255, 255))
+                screen.blit(text, text.get_rect(center=cp.center))
+
+    def get_random_safe_point(self, width: int, height: int, obj_w: int, obj_h: int):
+        for _ in range(50):
+            x = random.randint(50, width - 50)
+            y = random.randint(50, height - 50)
+            rect = pygame.Rect(x, y, obj_w, obj_h)
+            if not self.collides_with_walls(rect):
+                return (x, y)
+        return None
