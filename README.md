@@ -54,4 +54,6 @@
 
 ## 릴리즈
  - 2025-01-07
-   ○ Pulish the fisrt Demo Version 
+  Pulish the fisrt Demo Version 
+ - 2025-01-09
+  Release the second Demo Version 
