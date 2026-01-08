@@ -173,6 +173,26 @@ class Game:
             self._net_thread = threading.Thread(target=self._client_recv_loop, daemon=True)
             self._net_thread.start()
 
+        # BGM (onefile/onedir safe)
+
+        # ----------------------------
+        self.bgm_loaded = False
+        self.bgm_path = resource_path("assets/audio/bgm.mp3")
+
+        try:
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+
+            pygame.mixer.music.load(self.bgm_path)
+            pygame.mixer.music.set_volume(0.4)
+            pygame.mixer.music.play(-1)   # ✅ 무한 반복
+            self.bgm_loaded = True
+            print("BGM OK:", self.bgm_path)
+
+        except Exception as e:
+            print("BGM FAIL:", e)
+            self.bgm_loaded = False
+
     # -----------------------------
     # Init helpers
     # -----------------------------
@@ -199,12 +219,16 @@ class Game:
     # -----------------------------
     def _reset_car_positions(self):
         sp = self.track.spawn_points
+        angle = self.track.spawn_angle # 추가 - track.py에서 지정된 시작 각도 불러오기
+
+
         self.car1.x, self.car1.y = sp[0]
         self.car1.speed = 0
-        self.car1.angle = 0
+        self.car1.angle = angle
+
         self.car2.x, self.car2.y = sp[1]
         self.car2.speed = 0
-        self.car2.angle = 0
+        self.car2.angle = angle
 
         # 아이템/부스트 상태 초기화
         self.car1.has_item = False
@@ -258,6 +282,11 @@ class Game:
                 self.handle_events()
                 self.update(dt)
                 self.draw()
+        
+        try:
+            pygame.mixer.music.stop()
+        except Exception:
+            pass
 
         self._cleanup_network()
 
@@ -541,6 +570,9 @@ class Game:
                 self.winner = "P1"
             elif self.cp_index2 >= len(self.track.checkpoints):
                 self.winner = "P2"
+
+            self._check_car_to_car_collision()
+
 
             if self.net is not None:
                 self._send_state_to_client(server_time=time.monotonic())
@@ -845,6 +877,54 @@ class Game:
         small = pygame.font.SysFont(None, 26)
         tip = small.render("Get ready...", True, (220, 220, 220))
         self.screen.blit(tip, tip.get_rect(center=(self.width // 2, 300)))
+
+        # 추가 - 충돌 처리 함수
+    def _check_car_to_car_collision(self):
+        # 두 차량의 히트박스(rect) 가져오기
+        rect1 = self.car1.get_aabb_rect()
+        rect2 = self.car2.get_aabb_rect()
+
+        # 충돌 감지
+        if rect1.colliderect(rect2):
+            # 밀어내기 전 위치를 저장
+            c1_old_x, c1_old_y = self.car1.x, self.car1.y
+            c2_old_x, c2_old_y = self.car2.x, self.car2.y
+            
+            # 두 차량의 중심점 사이 거리 계산
+            dx = self.car1.x - self.car2.x
+            dy = self.car1.y - self.car2.y
+
+            # 두 차량 사이 거리가 너무 가까우면 강제로 값을 주기(0으로 나누기 방지)
+            if dx == 0 and dy == 0:
+                dx = 1.0
+            
+            # 밀어낼 힘의 크기
+            push_power = 5.0
+
+            # 방향 정규화
+            dist = (dx ** 2 + dy ** 2) ** 0.5
+            if dist > 0:
+                dx /= dist
+                dy /= dist
+            
+            # Car1은 밀려나고, Car2는 반대로 밀려남
+            self.car1.x += dx * push_power
+            self.car1.y += dy * push_power
+            self.car2.x -= dx * push_power
+            self.car2.y -= dy * push_power
+
+            # Car 1이 벽으로 밀려났다면? -> 원래 위치로 복귀
+            if self.track.collides_with_walls(self.car1.get_aabb_rect()):
+                self.car1.x, self.car1.y = c1_old_x, c1_old_y
+
+            # Car 2가 벽으로 밀려났다면? -> 원래 위치로 복귀
+            if self.track.collides_with_walls(self.car2.get_aabb_rect()):
+                self.car2.x, self.car2.y = c2_old_x, c2_old_y
+
+            # 속도 감소
+            self.car1.speed *= 0.5
+            self.car2.speed *= 0.5
+    
 
     def _host_time_now(self):
         # client는 local monotonic + offset => host time으로 환산

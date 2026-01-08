@@ -1,6 +1,6 @@
 # track.py
 import random
-
+import math
 import pygame
 
 
@@ -16,7 +16,10 @@ class Track:
     def __init__(self, map_id: int = 0):
         self.walls: list[pygame.Rect] = []
         self.checkpoints: list[pygame.Rect] = []
+
         self.spawn_points = [(300, 540), (350, 540)]
+        self.spawn_angle = 0.0 # 추가 - 라디안 단위
+
 
         # pygame.init() 이후에 font 사용 가능
         try:
@@ -46,7 +49,7 @@ class Track:
             pygame.Rect(780, 120, 60, 60),
             pygame.Rect(120, 120, 60, 60),
         ]
-        map0_spawn = [(300, 540), (350, 540)]
+        map0_spawn = [(200, 530), (200, 560)] 
 
         # 기존 track.py 맵을 Map 1로 + track2의 맵들을 Map 2~5로 (총 5개)
         self.MAP_DATA = [
@@ -66,7 +69,9 @@ class Track:
                     pygame.Rect(750, 460, 80, 80),
                     pygame.Rect(70, 260, 80, 80),
                 ],
-                "spawn_points": [(100, 300), (100, 350)],
+                "spawn_points": [(100, 300), (130, 300)],
+                "spawn_angle": -math.pi/2 # 추가
+
             },
 
             # Map 3: U자
@@ -85,7 +90,8 @@ class Track:
                     pygame.Rect(770, 50, 80, 80),
                     pygame.Rect(420, 500, 80, 80),
                 ],
-                "spawn_points": [(100, 500), (800, 500)],
+                "spawn_points": [(100, 500), (130, 500)],
+                "spawn_angle": -math.pi/2 # 추가
             },
 
             # Map 4: 8자
@@ -105,7 +111,8 @@ class Track:
                     pygame.Rect(420, 510, 60, 60),
                     pygame.Rect(400, 270, 100, 60),
                 ],
-                "spawn_points": [(420, 220), (420, 280)],
+                "spawn_points": [(420, 280), (450, 280)],
+                "spawn_angle": -math.pi/2 # 추가
             },
 
             # Map 5: 미로형
@@ -124,7 +131,8 @@ class Track:
                     pygame.Rect(550, 50, 60, 60),
                     pygame.Rect(800, 500, 60, 60),
                 ],
-                "spawn_points": [(100, 100), (100, 150)],
+                "spawn_points": [(100, 100), (130, 100)],
+                "spawn_angle": math.pi/2 # 추가
             },
         ]
 
@@ -138,6 +146,8 @@ class Track:
         self.walls = data["walls"]
         self.checkpoints = data["checkpoints"]
         self.spawn_points = data.get("spawn_points", [(300, 540), (350, 540)])
+        self.spawn_angle = data.get("spawn_angle", 0.0) # 추가
+
 
     def collides_with_walls(self, rect: pygame.Rect) -> bool:
         for w in self.walls:
