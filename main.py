@@ -5,7 +5,7 @@ import time
 from game import Game
 import network
 from ui import Button, TextInput, draw_title, draw_label
-
+from resource import resource_path
 
 WIDTH, HEIGHT = 900, 600
 
@@ -37,6 +37,20 @@ def main():
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("2D Racing - LAN")
     clock = pygame.time.Clock()
+
+        # -------- 배경 이미지 로드(메뉴용) --------
+    # 파일: assets/backgrounds/title_900x600.png
+    try:
+        bg_menu = pygame.image.load(
+            resource_path("assets/backgrounds/2player_racing_900x600.png")
+        ).convert()
+        # 혹시 원본 크기가 다르면 강제 리사이즈
+        if bg_menu.get_width() != WIDTH or bg_menu.get_height() != HEIGHT:
+            bg_menu = pygame.transform.smoothscale(bg_menu, (WIDTH, HEIGHT))
+    except Exception as e:
+        print("Failed to load menu background:", e)
+        bg_menu = None
+
 
     font_title = pygame.font.SysFont(None, 40)
     font = pygame.font.SysFont(None, 26)
@@ -167,10 +181,14 @@ def main():
                 pass
 
         # -------- 화면 그리기 --------
-        screen.fill((18, 18, 18))
+        if state == "menu" and bg_menu is not None:
+            screen.blit(bg_menu, (0, 0))      # ✅ 배경이미지 먼저
+        else:
+            screen.fill((18, 18, 18))         # 메뉴 외 화면은 기본 배경
+        
 
         if state == "menu":
-            draw_title(screen, font_title, "2D Racing - LAN")
+            #draw_title(screen, font_title, "2D Racing - LAN")
             btn_create.draw(screen)
             btn_join.draw(screen)
             btn_settings.draw(screen)
@@ -191,16 +209,16 @@ def main():
 
             # 참고: host IP 보여주기
             ip = network.get_local_ip()
-            info = font_small.render(f"내 IP: {ip}  (같은 Wi-Fi에서 방 목록으로 자동 표시됨)", True, (180, 180, 180))
+            info = font_small.render(f"My IP: {ip}  (Automatically visible in room list on the same Wi-Fi)", True, (180, 180, 180))
             screen.blit(info, (30, 520))
 
         elif state == "join":
-            draw_title(screen, font_title, "게임 방 참여하기")
-            info = font_small.render("LAN에서 방을 찾는 중... (안 보이면 AP isolation/방화벽 가능)", True, (180, 180, 180))
+            draw_title(screen, font_title, "Join Game Room")
+            info = font_small.render("Searching for rooms on LAN... (If not visible, check AP isolation / firewall)", True, (180, 180, 180))
             screen.blit(info, (30, 70))
 
             if not rooms:
-                empty = font.render("발견된 방이 없습니다. [새로고침]을 눌러 다시 탐색하세요.", True, (220, 220, 220))
+                empty = font.render("No rooms found. Click [Refresh] to scan again.", True, (220, 220, 220))
                 screen.blit(empty, (60, 140))
 
             for r, b in room_buttons:
@@ -210,8 +228,8 @@ def main():
             btn_back2.draw(screen)
 
         elif state == "settings":
-            draw_title(screen, font_title, "설정")
-            t = font.render("설정은 다음 단계에서 추가합니다. (ESC로 뒤로)", True, (220, 220, 220))
+            draw_title(screen, font_title, "Settings")
+            t = font.render("Settings will be added in the next step. (Press ESC to go back)", True, (220, 220, 220))
             screen.blit(t, (30, 120))
 
         pygame.display.flip()

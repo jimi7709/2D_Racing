@@ -10,6 +10,7 @@ import pygame
 import network
 from car import Car
 from track import Track
+from resource import resource_path
 
 
 # -----------------------------
@@ -177,15 +178,14 @@ class Game:
     # -----------------------------
     def _load_emote_images(self):
         try:
-            base_path = os.path.dirname(os.path.abspath(__file__))
-            assets_path = os.path.join(base_path, "assets")
             for i in range(1, 6):
-                file_path = os.path.join(assets_path, f"{i}.png")
-                raw_img = pygame.image.load(file_path)
+                file_path = resource_path(f"assets/{i}.png")
+                raw_img = pygame.image.load(file_path).convert_alpha()
                 self.emote_imgs[i] = pygame.transform.scale(raw_img, (32, 32))
-            print(f"이모티콘 로드 성공! (경로: {assets_path})")
+            print("이모티콘 로드 성공! (resource_path 사용)")
         except Exception as e:
             print(f"이모티콘 로드 실패: {e}")
+
 
     def _spawn_initial_items(self):
         self.items = []
